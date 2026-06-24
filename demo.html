@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>인증 수하물 핸드오버 · 실시간 모니터링</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0F17;
+    --panel:#111A26;
+    --panel-2:#0E1620;
+    --line:#1E2D40;
+    --line-soft:#16212F;
+    --txt:#D7E2F0;
+    --txt-dim:#7B8DA6;
+    --txt-faint:#52617A;
+    --cyan:#46B6E6;
+    --green:#34D49A;
+    --amber:#F2A63C;
+    --red:#E2231A;
+    --violet:#9A8CF0;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sans:'IBM Plex Sans KR',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(70,182,230,.06), transparent 60%),
+      var(--bg);
+    color:var(--txt);
+    font-family:var(--sans);
+    font-size:13px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* ---------- shell ---------- */
+  .wrap{max-width:1400px;margin:0 auto;padding:16px}
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;align-items:center;gap:18px;
+    padding:14px 18px;
+    background:linear-gradient(180deg,#121C29,#0E1620);
+    border:1px solid var(--line);
+    border-radius:12px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:var(--red);
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;padding-left:6px}
+  .brand .ttl{font-weight:700;font-size:18px;letter-spacing:-.2px}
+  .brand .ttl b{color:var(--red)}
+  .brand .sub{font-size:11px;color:var(--txt-dim);letter-spacing:.3px}
+  .brand .sub .en{color:var(--cyan);font-family:var(--mono);font-weight:500}
+  .hdr-spacer{flex:1}
+  .hdr-stat{
+    display:flex;flex-direction:column;align-items:flex-end;gap:1px;
+    padding:0 16px;border-left:1px solid var(--line-soft);
+  }
+  .hdr-stat .k{font-size:10px;color:var(--txt-faint);letter-spacing:.5px;text-transform:uppercase}
+  .hdr-stat .v{font-family:var(--mono);font-size:15px;font-weight:500}
+  .runpill{
+    display:flex;align-items:center;gap:8px;
+    background:rgba(52,212,154,.1);border:1px solid rgba(52,212,154,.35);
+    color:var(--green);padding:7px 13px;border-radius:8px;
+    font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.4px;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor;
+    box-shadow:0 0 0 0 currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(52,212,154,.45)}
+    70%{box-shadow:0 0 0 7px rgba(52,212,154,0)}
+    100%{box-shadow:0 0 0 0 rgba(52,212,154,0)}
+  }
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:13px 14px;position:relative;overflow:hidden;
+  }
+  .kpi .lab{font-size:10.5px;color:var(--txt-dim);letter-spacing:.3px;display:flex;align-items:center;gap:6px}
+  .kpi .num{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:6px;letter-spacing:-.5px}
+  .kpi .unit{font-size:12px;color:var(--txt-faint);font-weight:400;margin-left:3px}
+  .kpi .spark{position:absolute;right:12px;bottom:10px;width:46px;height:18px;opacity:.6}
+  .kpi.accent .num{color:var(--cyan)}
+  .kpi.green .num{color:var(--green)}
+  .kpi.amber .num{color:var(--amber)}
+  .ledge{width:6px;height:6px;border-radius:50%}
+
+  /* ---------- main grid ---------- */
+  .grid{display:grid;grid-template-columns:248px 1fr 300px;gap:12px;margin-top:12px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:12px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  }
+  .card > .head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 13px;border-bottom:1px solid var(--line-soft);
+    background:var(--panel-2);
+  }
+  .card > .head .t{font-size:11.5px;font-weight:600;letter-spacing:.4px;color:var(--txt)}
+  .card > .head .t .ix{color:var(--txt-faint);font-family:var(--mono);margin-right:7px;font-size:11px}
+  .card > .head .meta{font-family:var(--mono);font-size:10.5px;color:var(--txt-faint)}
+  .card > .body{padding:12px 13px}
+
+  /* ---------- node list (comms) ---------- */
+  .node{
+    display:flex;align-items:center;gap:10px;padding:9px 0;
+    border-bottom:1px dashed var(--line-soft);
+  }
+  .node:last-child{border-bottom:none}
+  .node .ic{
+    width:30px;height:30px;border-radius:7px;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line);
+    font-size:14px;
+  }
+  .node .info{flex:1;min-width:0}
+  .node .info .n{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .node .info .d{font-size:10px;color:var(--txt-faint);font-family:var(--mono)}
+  .node .st{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600}
+  .st.ok{color:var(--green)} .st.warn{color:var(--amber)} .st.run{color:var(--cyan)}
+
+  .layer-arrow{text-align:center;color:var(--txt-faint);font-size:13px;line-height:.6;padding:1px 0}
+
+  /* ---------- hardware rows ---------- */
+  .hw{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line-soft)}
+  .hw:last-child{border-bottom:none}
+  .hw .l{display:flex;flex-direction:column}
+  .hw .l .nm{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--txt)}
+  .hw .l .ds{font-size:10px;color:var(--txt-faint)}
+  .hw .r{text-align:right}
+  .hw .r .val{font-family:var(--mono);font-size:14px;font-weight:600}
+  .hw .r .vu{font-size:10px;color:var(--txt-faint)}
+  .bar{height:3px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden;width:88px;margin-left:auto}
+  .bar > i{display:block;height:100%;background:var(--cyan);border-radius:2px;transition:width .6s}
+
+  /* ---------- center carousel ---------- */
+  .carousel-card .body{padding:6px 6px 2px}
+  svg.loop{display:block;width:100%;height:auto}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;padding:6px 12px 12px;font-size:10.5px;color:var(--txt-dim)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .lg-dot{width:9px;height:9px;border-radius:50%}
+
+  /* discharge points row */
+  .bays{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;padding:0 12px 12px}
+  .bay{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    padding:7px 2px 6px;text-align:center;position:relative;transition:.15s;
+  }
+  .bay .bn{font-family:var(--mono);font-size:10px;color:var(--txt-faint)}
+  .bay .bled{width:8px;height:8px;border-radius:50%;background:var(--line);margin:4px auto 3px;transition:.15s}
+  .bay .bc{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--txt-dim)}
+  .bay.armed{border-color:rgba(52,212,154,.5)}
+  .bay.armed .bled{background:var(--green);box-shadow:0 0 7px var(--green)}
+  .bay.fire{border-color:var(--red);background:rgba(226,35,26,.12)}
+  .bay.fire .bled{background:var(--red);box-shadow:0 0 9px var(--red)}
+
+  /* ---------- right: auth queue ---------- */
+  .q-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px dashed var(--line-soft)}
+  .q-item:last-child{border-bottom:none}
+  .q-av{width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;background:var(--panel-2);border:1px solid var(--line);color:var(--cyan)}
+  .q-mid{flex:1;min-width:0}
+  .q-mid .qn{font-size:12px;font-weight:600}
+  .q-mid .qd{font-size:10px;color:var(--txt-faint);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-tag{font-family:var(--mono);font-size:9.5px;font-weight:600;padding:3px 7px;border-radius:5px;white-space:nowrap}
+  .q-tag.verified{color:var(--green);background:rgba(52,212,154,.12)}
+  .q-tag.matched{color:var(--cyan);background:rgba(70,182,230,.12)}
+  .q-tag.wait{color:var(--amber);background:rgba(242,166,60,.12)}
+
+  /* bag table */
+  table.bagtbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10.5px}
+  table.bagtbl th{
+    text-align:left;color:var(--txt-faint);font-weight:500;font-size:9.5px;
+    text-transform:uppercase;letter-spacing:.4px;padding:5px 4px;border-bottom:1px solid var(--line)
+  }
+  table.bagtbl td{padding:6px 4px;border-bottom:1px solid var(--line-soft);color:var(--txt-dim)}
+  table.bagtbl td.id{color:var(--txt);font-weight:600}
+  table.bagtbl .pill{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600}
+  .pill.circ{color:var(--txt-dim);background:var(--line-soft)}
+  .pill.mat{color:var(--green);background:rgba(52,212,154,.12)}
+
+  /* ---------- event log ---------- */
+  .log-card .body{padding:0}
+  .log{height:118px;overflow:hidden;font-family:var(--mono);font-size:11px}
+  .log .row{display:flex;gap:12px;padding:6px 14px;border-bottom:1px solid var(--line-soft);align-items:center}
+  .log .ts{color:var(--txt-faint);flex:none}
+  .log .tag{flex:none;width:54px;font-weight:600;font-size:9.5px}
+  .log .msg{color:var(--txt-dim);flex:1}
+  .tag.ok{color:var(--green)} .tag.info{color:var(--cyan)} .tag.act{color:var(--amber)} .tag.fire{color:var(--red)}
+
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:0 4px;
+    font-size:10.5px;color:var(--txt-faint);font-family:var(--mono)}
+
+  @media (max-width:1100px){
+    .grid{grid-template-columns:1fr}
+    .kpis{grid-template-columns:repeat(3,1fr)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .dot{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="ttl">「인증 수하물 <b>핸드오버</b>」</div>
+      <div class="sub"><span class="en">SafeClaim</span> · 실시간 운전 모니터링 — GENESIS64 HMI</div>
+    </div>
+    <div class="hdr-spacer"></div>
+    <div class="hdr-stat">
+      <span class="k">Line</span><span class="v">CAROUSEL-A · 12 BAY</span>
+    </div>
+    <div class="hdr-stat">
+      <span class="k">System Time</span><span class="v" id="clock">--:--:--</span>
+    </div>
+    <div class="runpill"><span class="dot"></span> 정상 운전 · RUN</div>
+  </header>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi accent">
+      <div class="lab"><span class="ledge" style="background:var(--cyan)"></span>금일 인도 처리</div>
+      <div class="num"><span id="kProcessed">0</span><span class="unit">건</span></div>
+    </div>
+    <div class="kpi green">
+      <div class="lab"><span class="ledge" style="background:var(--green)"></span>인증 인도 성공률</div>
+      <div class="num"><span id="kRate">99.7</span><span class="unit">%</span></div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="ledge" style="background:var(--violet)"></span>평균 인도 소요</div>
+      <div class="num"><span id="kAvg">0</span><span class="unit">초</span></div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="ledge" style="background:var(--cyan)"></span>순환 중 수하물</div>
+      <div class="num"><span id="kOnLoop">0</span><span class="unit">개</span></div>
+    </div>
+    <div class="kpi amber">
+      <div class="lab"><span class="ledge" style="background:var(--amber)"></span>인증 대기 승객</div>
+      <div class="num"><span id="kWait">0</span><span class="unit">명</span></div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="ledge" style="background:var(--txt-faint)"></span>미매칭 재순환</div>
+      <div class="num"><span id="kRecirc">0</span><span class="unit">회</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="grid">
+
+    <!-- LEFT -->
+    <div class="col">
+      <div class="card">
+        <div class="head"><span class="t"><span class="ix">01</span>통신 계층</span><span class="meta">CC-Link IE</span></div>
+        <div class="body">
+          <div class="node">
+            <div class="ic">🖥️</div>
+            <div class="info"><div class="n">인증 · 매칭 허브 <span style="font-size:9px;color:var(--txt-faint);font-weight:400">PC</span></div><div class="d">QR/RFID ↔ 승객 매칭</div></div>
+            <div class="st run"><span class="dot" style="width:6px;height:6px"></span>ONLINE</div>
+          </div>
+          <div class="layer-arrow">⌄</div>
+          <div class="node">
+            <div class="ic">⚙️</div>
+            <div class="info"><div class="n">MELSEC iQ-R <span style="font-size:9px;color:var(--txt-faint);font-weight:400">PLC</span></div><div class="d">실시간 필드 제어 · 1ms 스캔</div></div>
+            <div class="st ok"><span>RUN</span></div>
+          </div>
+          <div class="layer-arrow">⌄</div>
+          <div class="node">
+            <div class="ic">📷</div>
+            <div class="info"><div class="n">Raspberry Pi <span style="font-size:9px;color:var(--txt-faint);font-weight:400">식별</span></div><div class="d">카메라 QR · RFID · 근접센서</div></div>
+            <div class="st ok"><span>OK</span></div>
+          </div>
+          <div class="layer-arrow">⌄</div>
+          <div class="node">
+            <div class="ic">📱</div>
+            <div class="info"><div class="n">모바일 앱 <span style="font-size:9px;color:var(--txt-faint);font-weight:400">승객</span></div><div class="d">탑승권 · 좌석 인증 입력</div></div>
+            <div class="st ok"><span id="appSess">0</span> 세션</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="t"><span class="ix">02</span>구동 · FA 하드웨어</span><span class="meta">MELSERVO</span></div>
+        <div class="body">
+          <div class="hw">
+            <div class="l"><span class="nm">MR-J4 서보</span><span class="ds">캐러셀 구동축</span></div>
+            <div class="r"><span class="val" id="srvTrq">0.0</span><span class="vu"> N·m</span><div class="bar"><i id="srvBar" style="width:40%"></i></div></div>
+          </div>
+          <div class="hw">
+            <div class="l"><span class="nm">FR-E800 인버터</span><span class="ds">반송 컨베이어</span></div>
+            <div class="r"><span class="val" id="invHz">0.0</span><span class="vu"> Hz</span><div class="bar"><i id="invBar" style="width:55%;background:var(--green)"></i></div></div>
+          </div>
+          <div class="hw">
+            <div class="l"><span class="nm">엔코더 링버퍼</span><span class="ds">위치 추종 시프트</span></div>
+            <div class="r"><span class="val mono" id="encPos">0</span><span class="vu"> pls</span></div>
+          </div>
+          <div class="hw">
+            <div class="l"><span class="nm">CC-Link IE 분산 I/O</span><span class="ds">4-코너 노드</span></div>
+            <div class="r"><span class="val" style="color:var(--green)">4/4</span><span class="vu"> 정상</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="col">
+      <div class="card carousel-card">
+        <div class="head">
+          <span class="t"><span class="ix">03</span>수하물 캐러셀 · 핸드오버 베이</span>
+          <span class="meta">재순환 사각 루프 · 12 토출구</span>
+        </div>
+        <div class="body">
+          <svg class="loop" viewBox="0 0 560 360" xmlns="http://www.w3.org/2000/svg" aria-label="캐러셀 루프 실시간 가시화">
+            <defs>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2.4" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <!-- corner I/O nodes -->
+            <g id="corners"></g>
+            <!-- loop track -->
+            <path id="loopOuter" d="" fill="none" stroke="#1B2A3D" stroke-width="26" stroke-linejoin="round"/>
+            <path id="loopPath"  d="" fill="none" stroke="#28425E" stroke-width="2" stroke-dasharray="3 7"/>
+            <!-- bays + bags injected -->
+            <g id="bayLayer"></g>
+            <g id="bagLayer"></g>
+            <!-- center readout -->
+            <g id="centerBox"></g>
+          </svg>
+          <div class="legend">
+            <span><i class="lg-dot" style="background:var(--cyan)"></i>순환 중 (미매칭)</span>
+            <span><i class="lg-dot" style="background:var(--green)"></i>인증 매칭 완료</span>
+            <span><i class="lg-dot" style="background:var(--red)"></i>실린더 토출 (인도)</span>
+            <span><i class="lg-dot" style="background:#9aa7bb"></i>CC-Link IE 코너 노드</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="t"><span class="ix">04</span>핸드오버 베이 상태 · 공압 실린더</span><span class="meta">광전 재실감지 + 토출</span></div>
+        <div class="body" style="padding-bottom:0">
+          <div class="bays" id="bays"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col">
+      <div class="card">
+        <div class="head"><span class="t"><span class="ix">05</span>인증 · 매칭 큐</span><span class="meta" id="qMeta">0 대기</span></div>
+        <div class="body" id="authQueue" style="min-height:170px"></div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="t"><span class="ix">06</span>수하물 추적</span><span class="meta" id="bagMeta">0 추적 중</span></div>
+        <div class="body" style="padding:6px 10px 10px">
+          <table class="bagtbl">
+            <thead><tr><th>BAG</th><th>편명</th><th>위치</th><th>목적 BAY</th><th>상태</th></tr></thead>
+            <tbody id="bagBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="card log-card" style="margin-top:12px">
+    <div class="head"><span class="t"><span class="ix">07</span>이벤트 · 알람 로그</span><span class="meta">SCADA EVENT STREAM</span></div>
+    <div class="body"><div class="log" id="log"></div></div>
+  </div>
+
+  <div class="foot">
+    <span>SafeClaim Monitoring · 2026 MECA CUP KOREA — Mitsubishi Electric e-F@ctory</span>
+    <span id="footUptime">UPTIME 00:00:00</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- geometry: rounded-rect loop ----
+  const X=80,Y=70,W=400,H=220,R=64, CX=X+W/2, CY=Y+H/2;
+  const loopD =
+    `M${X+R},${Y} H${X+W-R} A${R},${R} 0 0 1 ${X+W},${Y+R}`+
+    ` V${Y+H-R} A${R},${R} 0 0 1 ${X+W-R},${Y+H}`+
+    ` H${X+R} A${R},${R} 0 0 1 ${X},${Y+H-R}`+
+    ` V${Y+R} A${R},${R} 0 0 1 ${X+R},${Y} Z`;
+  const path = $('#loopPath'); path.setAttribute('d', loopD);
+  $('#loopOuter').setAttribute('d', loopD);
+  const TOTAL = path.getTotalLength();
+
+  function ptAt(frac){
+    const L = (((frac%1)+1)%1)*TOTAL;
+    return path.getPointAtLength(L);
+  }
+  function geomAt(frac){
+    const p = ptAt(frac), p2 = ptAt(frac+0.0025);
+    let tx=p2.x-p.x, ty=p2.y-p.y; const m=Math.hypot(tx,ty)||1; tx/=m; ty/=m;
+    let nx=-ty, ny=tx;
+    if((p.x-CX)*nx+(p.y-CY)*ny < 0){ nx=-nx; ny=-ny; }
+    return {x:p.x,y:p.y,nx,ny};
+  }
+  const SVGNS='http://www.w3.org/2000/svg';
+  function el(tag,attr){const e=document.createElementNS(SVGNS,tag);for(const k in attr)e.setAttribute(k,attr[k]);return e;}
+
+  // ---- corner I/O nodes ----
+  const cornerG=$('#corners');
+  [[X,Y],[X+W,Y],[X+W,Y+H],[X,Y+H]].forEach((c,i)=>{
+    cornerG.appendChild(el('rect',{x:c[0]-9,y:c[1]-9,width:18,height:18,rx:4,fill:'#0E1620',stroke:'#9aa7bb','stroke-width':1.3}));
+    cornerG.appendChild(el('circle',{cx:c[0],cy:c[1],r:2.4,fill:'#9aa7bb'}));
+  });
+
+  // ---- bays ----
+  const NBAY=12;
+  const bayLayer=$('#bayLayer');
+  const baysEl=$('#bays');
+  const bayFrac = b => (((b-1)+0.5)/NBAY);
+  const bayNodes=[], bayCards=[];
+  for(let b=1;b<=NBAY;b++){
+    const g=geomAt(bayFrac(b));
+    const bx=g.x+g.nx*15, by=g.y+g.ny*15;
+    // chute
+    bayLayer.appendChild(el('line',{x1:g.x,y1:g.y,x2:bx,y2:by,stroke:'#28425E','stroke-width':5,'stroke-linecap':'round'}));
+    const box=el('g',{});
+    const rect=el('rect',{x:bx-11,y:by-11,width:22,height:22,rx:5,fill:'#0E1620',stroke:'#28425E','stroke-width':1.3});
+    const led=el('circle',{cx:bx,cy:by,r:4,fill:'#2c3e54'});
+    const tx=el('text',{x:bx,y:by+3.5,'text-anchor':'middle','font-size':'9','font-family':'var(--mono)',fill:'#7B8DA6'});
+    tx.textContent=b;
+    box.appendChild(rect);box.appendChild(led);box.appendChild(tx);
+    bayLayer.appendChild(box);
+    bayNodes.push({rect,led,tx});
+
+    const card=document.createElement('div');
+    card.className='bay';
+    card.innerHTML=`<div class="bn">B${String(b).padStart(2,'0')}</div><div class="bled"></div><div class="bc">0</div>`;
+    baysEl.appendChild(card);
+    bayCards.push(card);
+  }
+
+  // center readout
+  const cb=$('#centerBox');
+  cb.appendChild(el('text',{x:CX,y:CY-14,'text-anchor':'middle','font-size':'10','font-family':'var(--mono)',fill:'#52617A'})).textContent='CAROUSEL-A';
+  const cTput=el('text',{x:CX,y:CY+10,'text-anchor':'middle','font-size':'24','font-weight':'600','font-family':'var(--mono)',fill:'#46B6E6'});
+  cTput.textContent='0'; cb.appendChild(cTput);
+  cb.appendChild(el('text',{x:CX,y:CY+26,'text-anchor':'middle','font-size':'9','font-family':'var(--mono)',fill:'#52617A'})).textContent='인도 / 금일';
+
+  // ---- state ----
+  const FLIGHTS=['KE0703','OZ0211','KE0017','OZ0742','KE5901','7C1402','LJ0303','TW0712','KE0085','OZ0102'];
+  const SURNAMES=['김','이','박','최','정','강','조','윤','장','한','임','오','서'];
+  const METHODS=[['앱 QR','matched'],['RFID','matched'],['근접 센서','matched']];
+  let seq=4471, processed=0, recirc=0, success=0, fails=0;
+  let avgTime=0, sampN=0;
+  let bags=[], queue=[], logRows=[];
+  const bagNodes=new Map();
+
+  function spawnBag(){
+    if(bags.length>=13) return;
+    const id=seq++;
+    const bay=1+Math.floor(Math.random()*NBAY);
+    const flight=FLIGHTS[(Math.random()*FLIGHTS.length)|0];
+    bags.push({id,tag:'TAG'+id,flight,bay,frac:Math.random(),
+      speed:(0.00020+Math.random()*0.00006)*(reduced?1.5:1),
+      auth:false,laps:0,prev:0,spawnFrac:null,matchT:0});
+    pushLog('info','INPUT',`${flight} 수하물 TAG${id} 투입 · 목적 BAY ${bay}`);
+  }
+
+  function verifyPassenger(){
+    const unmatched=bags.filter(b=>!b.auth);
+    if(!unmatched.length) return;
+    const b=unmatched[(Math.random()*unmatched.length)|0];
+    b.auth=true; b.matchT=performance.now();
+    const sur=SURNAMES[(Math.random()*SURNAMES.length)|0];
+    const meth=METHODS[(Math.random()*METHODS.length)|0];
+    queue.unshift({name:sur+'**',method:meth[0],bay:b.bay,tag:b.tag,state:'matched',t:Date.now()});
+    if(queue.length>6) queue.pop();
+    pushLog('ok','MATCH',`승객 ${sur}** ↔ ${b.tag} 매칭 완료 (${meth[0]}) · BAY ${b.bay} 배정`);
+  }
+
+  function fireBay(b){
+    const node=bayNodes.get(b.id);
+    if(node) node.remove(); bagNodes.delete(b.id);
+    bags=bags.filter(x=>x!==b);
+    processed++; success++;
+    const dt=8+Math.random()*22;
+    sampN++; avgTime+=(dt-avgTime)/sampN;
+    // bay UI fire
+    const bn=bayNodes2(b.bay-1);
+    bayCards[b.bay-1].classList.add('fire');
+    bayNodes[b.bay-1].rect.setAttribute('stroke','#E2231A');
+    bayNodes[b.bay-1].led.setAttribute('fill','#E2231A');
+    bayNodes[b.bay-1].led.setAttribute('filter','url(#glow)');
+    bayCounts[b.bay-1]++;
+    setTimeout(()=>{
+      bayCards[b.bay-1].classList.remove('fire');
+      bayNodes[b.bay-1].rect.setAttribute('stroke','#28425E');
+      bayNodes[b.bay-1].led.setAttribute('fill','#2c3e54');
+      bayNodes[b.bay-1].led.removeAttribute('filter');
+    },550);
+    pushLog('fire','EJECT',`BAY ${b.bay} 실린더 토출 → ${b.tag} 인증 인도 완료 (${dt.toFixed(0)}s)`);
+  }
+  function bayNodes2(i){return i;}
+  const bayCounts=new Array(NBAY).fill(0);
+
+  function pushLog(cls,tag,msg){
+    const ts=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+    logRows.unshift({cls,tag,msg,ts});
+    if(logRows.length>7) logRows.pop();
+  }
+
+  // ---- per-frame motion ----
+  function tick(){
+    for(const b of bags){
+      b.prev=b.frac;
+      b.frac=(b.frac+b.speed)%1;
+      if(b.prev>b.frac) { if(!b.auth){ b.laps++; recirc++; } }
+      // discharge check (crossing bay frac while authed)
+      if(b.auth){
+        const tf=bayFrac(b.bay);
+        const crossed = (b.prev < tf && b.frac>=tf) || (b.prev>b.frac && (tf>=b.prev||tf<=b.frac));
+        if(crossed){ fireBay(b); continue; }
+      }
+      // render node
+      let n=bagNodes.get(b.id);
+      if(!n){
+        n=el('g',{});
+        const halo=el('circle',{r:9,fill:'rgba(70,182,230,.0)'});
+        const c=el('circle',{r:5.5,fill:'#46B6E6',stroke:'#0A0F17','stroke-width':1.5});
+        n.appendChild(halo);n.appendChild(c);
+        n._c=c; n._h=halo;
+        $('#bagLayer').appendChild(n); bagNodes.set(b.id,n);
+      }
+      const p=ptAt(b.frac);
+      n.setAttribute('transform',`translate(${p.x},${p.y})`);
+      if(b.auth){
+        n._c.setAttribute('fill','#34D49A');
+        n._h.setAttribute('fill','rgba(52,212,154,.18)');
+        n._c.setAttribute('filter','url(#glow)');
+      }else{
+        n._c.setAttribute('fill', b.laps>0 ? '#F2A63C' : '#46B6E6');
+        n._c.removeAttribute('filter');
+      }
+    }
+    if(!reduced) requestAnimationFrame(tick);
+  }
+
+  // ---- UI refresh (throttled) ----
+  function refresh(){
+    $('#kProcessed').textContent=processed;
+    $('#kOnLoop').textContent=bags.length;
+    $('#kWait').textContent=bags.filter(b=>!b.auth).length;
+    $('#kRecirc').textContent=recirc;
+    $('#kAvg').textContent=avgTime?avgTime.toFixed(0):'0';
+    const rate=success+fails?(success/(success+fails)*100):99.7;
+    $('#kRate').textContent=rate.toFixed(1);
+    $('#appSess').textContent=Math.max(bags.filter(b=>b.auth).length,queue.length);
+    cTput.textContent=processed;
+
+    // hardware sim
+    const load=bags.length/13;
+    $('#srvTrq').textContent=(1.2+load*2.3+Math.random()*0.3).toFixed(1);
+    $('#srvBar').style.width=(30+load*55)+'%';
+    $('#invHz').textContent=(42+load*16+Math.random()*1.5).toFixed(1);
+    $('#encPos').textContent=(performance.now()*3|0)%100000;
+
+    // bays
+    for(let i=0;i<NBAY;i++){
+      bayCards[i].querySelector('.bc').textContent=bayCounts[i];
+      const armed=bags.some(b=>b.auth&&b.bay===i+1);
+      bayCards[i].classList.toggle('armed', armed && !bayCards[i].classList.contains('fire'));
+      const led=bayNodes[i].led;
+      if(armed && bayNodes[i].led.getAttribute('fill')!=='#E2231A'){
+        led.setAttribute('fill','#34D49A'); led.setAttribute('filter','url(#glow)');
+      }else if(!armed && bayNodes[i].led.getAttribute('fill')!=='#E2231A'){
+        led.setAttribute('fill','#2c3e54'); led.removeAttribute('filter');
+      }
+    }
+
+    // auth queue
+    const q=$('#authQueue');
+    $('#qMeta').textContent=queue.length+' 대기';
+    q.innerHTML=queue.map(it=>{
+      const cls=it.state==='matched'?'matched':'verified';
+      const label=it.state==='matched'?'매칭완료':'인증완료';
+      return `<div class="q-item">
+        <div class="q-av">${it.name[0]}</div>
+        <div class="q-mid"><div class="qn">${it.name} 승객</div>
+        <div class="qd">${it.method} · ${it.tag} · BAY ${it.bay}</div></div>
+        <span class="q-tag ${cls}">${label}</span></div>`;
+    }).join('')||'<div style="color:var(--txt-faint);text-align:center;padding:30px 0;font-size:11px">인증 대기 없음</div>';
+
+    // bag table
+    const tb=$('#bagBody');
+    $('#bagMeta').textContent=bags.length+' 추적 중';
+    const sorted=[...bags].sort((a,b)=>a.id-b.id).slice(0,8);
+    tb.innerHTML=sorted.map(b=>{
+      const posBay=Math.floor(b.frac*NBAY)+1;
+      const pill=b.auth?'<span class="pill mat">매칭</span>':'<span class="pill circ">순환</span>';
+      return `<tr><td class="id">${b.tag}</td><td>${b.flight}</td><td>P${posBay}</td><td>BAY ${b.bay}</td><td>${pill}</td></tr>`;
+    }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--txt-faint);padding:18px">데이터 없음</td></tr>';
+
+    // log
+    $('#log').innerHTML=logRows.map(r=>
+      `<div class="row"><span class="ts">${r.ts}</span><span class="tag ${r.cls}">${r.tag}</span><span class="msg">${r.msg}</span></div>`
+    ).join('');
+
+    if(reduced) tick(); // step manually if reduced motion
+  }
+
+  // ---- clock / uptime ----
+  const start=Date.now();
+  function clock(){
+    const now=new Date();
+    $('#clock').textContent=now.toLocaleTimeString('ko-KR',{hour12:false});
+    const up=Math.floor((Date.now()-start)/1000);
+    const hh=String(Math.floor(up/3600)).padStart(2,'0');
+    const mm=String(Math.floor(up%3600/60)).padStart(2,'0');
+    const ss=String(up%60).padStart(2,'0');
+    $('#footUptime').textContent=`UPTIME ${hh}:${mm}:${ss}`;
+  }
+
+  // ---- boot ----
+  pushLog('info','BOOT','SafeClaim SCADA 세션 시작 · CC-Link IE 링크업 완료');
+  pushLog('ok','LINK','분산 I/O 4노드 정상 · MELSEC iQ-R RUN');
+  for(let i=0;i<5;i++) spawnBag();
+
+  if(!reduced) requestAnimationFrame(tick);
+  setInterval(spawnBag, 2600);
+  setInterval(verifyPassenger, 1900);
+  setInterval(refresh, 480);
+  setInterval(clock, 1000);
+  clock(); refresh();
+})();
+</script>
+</body>
+</html>
